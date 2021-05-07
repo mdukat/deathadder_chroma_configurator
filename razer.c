@@ -6,6 +6,8 @@
 #include <byteswap.h>
 #include "libusb.h"
 
+// gcc razer.c -o death_color -I/usr/include/libusb-1.0 -lusb-1.0
+
 enum rMode {
 RAZER_MODE_DPI = 0,
 RAZER_MODE_LOGO_COLOR,
@@ -21,17 +23,17 @@ uint8_t* buildPacket(enum rMode mode, void* value){
 	memset(packet, 0x00, 90);
 	memcpy(packet, "\x00\x3f\x00\x00\x00", 5); // Header
 	switch(mode){
-		case RAZER_MODE_DPI:
+		case RAZER_MODE_DPI: // untested
 			packet[88] = 0x06;
 			memcpy(packet+5, "\x07\x04\x05", 3);
 			//uint8_t vbuffer[2];
 			//vbuffer[0] = (uint16_t*)value[1]; // endianess
 			//vbuffer[1] = (uint16_t*)value[0];
-			uint16_t vbuffer = __bswap_16(*(uint16_t*)value);
+			uint16_t vbuffer = __bswap_16(*(uint16_t*)value); // TODO check for indianess with gcc
 			memcpy(packet+9, &vbuffer, 2);
 			memcpy(packet+11, &vbuffer, 2);
 			break;
-		case RAZER_MODE_LOGO_COLOR:
+		case RAZER_MODE_LOGO_COLOR: // Breaks on custom colors, only FF on R,G,B tested
 			packet[88] = 0xfd;
 			memcpy(packet+5, "\x05\x03\x01\x01\x04", 5);
 			memcpy(packet+10, value, 3);
@@ -60,6 +62,8 @@ uint8_t* buildPacket(enum rMode mode, void* value){
 }
 
 static void sendPacket(uint8_t* packet){
+	// If you want to use this code for real,
+	// be sure to make it safe. In this state, it's not.
 	libusb_init(NULL);
 	libusb_device_handle* razerHandle = libusb_open_device_with_vid_pid(NULL, 0x1532, 0x0043);
 	libusb_set_auto_detach_kernel_driver(razerHandle, 1);
@@ -73,6 +77,8 @@ static void sendPacket(uint8_t* packet){
 				packet,
 				90,
 				0);
+	//libusb_close(razerHandle);
+	libusb_reset_device(razerHandle);
 
 }
 
@@ -83,7 +89,7 @@ static void printPacket(uint8_t* packet){
 	printf("\n");
 }
 
-int main(){
+int main(int argc, char** argv){
 	uint8_t* packet;
 
 	/*
@@ -96,7 +102,15 @@ int main(){
 	printPacket(packet);
 	*/
 
-	uint8_t valueRGB[3] = {0xFF, 0x00, 0x00};
+	if(argc<4){
+		printf("Usage: death_color <R> <G> <B>\nExample: death_color 255 0 0 - Red logo\n");
+		return -1;
+	}
+
+	uint8_t R = (uint8_t)atoi(argv[1]);
+	uint8_t G = (uint8_t)atoi(argv[2]);
+	uint8_t B = (uint8_t)atoi(argv[3]);
+	uint8_t valueRGB[3] = {R, G, B};
 	packet = buildPacket(RAZER_MODE_LOGO_COLOR, valueRGB);
 	sendPacket(packet);
 
